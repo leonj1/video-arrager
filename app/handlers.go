@@ -3,6 +3,7 @@ package app
 import (
 	"log"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -32,6 +33,18 @@ func NewHandlers(state *State, window fyne.Window) *Handlers {
 		state:  state,
 		window: window,
 	}
+}
+
+func (h *Handlers) OnNew() {
+	if h.state.Count() == 0 {
+		return
+	}
+
+	dialog.ShowConfirm("New Project", "Start a new project? All unsaved changes will be lost.", func(ok bool) {
+		if ok {
+			h.state.Clear()
+		}
+	}, h.window)
 }
 
 func (h *Handlers) OnAddVideos() {
@@ -100,6 +113,48 @@ func (h *Handlers) OnExport() {
 		return
 	}
 
+	h.showExportOptions()
+}
+
+func (h *Handlers) showExportOptions() {
+	transitionSelect := widget.NewSelect([]string{"None", "Fade", "Crossfade"}, nil)
+	transitionSelect.SetSelected("None")
+
+	durationEntry := widget.NewEntry()
+	durationEntry.SetText("1.0")
+
+	form := widget.NewForm(
+		widget.NewFormItem("Transition", transitionSelect),
+		widget.NewFormItem("Duration (sec)", durationEntry),
+	)
+
+	dialog.ShowCustomConfirm("Export Options", "Next", "Cancel", form, func(confirmed bool) {
+		if !confirmed {
+			return
+		}
+
+		options := ExportOptions{}
+
+		switch transitionSelect.Selected {
+		case "Fade":
+			options.Transition = TransitionFade
+		case "Crossfade":
+			options.Transition = TransitionCrossfade
+		default:
+			options.Transition = TransitionNone
+		}
+
+		if dur, err := strconv.ParseFloat(durationEntry.Text, 64); err == nil && dur > 0 {
+			options.TransitionDuration = dur
+		} else {
+			options.TransitionDuration = 1.0
+		}
+
+		h.showFileSaveDialog(options)
+	}, h.window)
+}
+
+func (h *Handlers) showFileSaveDialog(options ExportOptions) {
 	fd := dialog.NewFileSave(func(writer fyne.URIWriteCloser, err error) {
 		if err != nil {
 			dialog.ShowError(err, h.window)
@@ -118,7 +173,7 @@ func (h *Handlers) OnExport() {
 		progressDialog := dialog.NewCustom("Exporting", "Cancel", widget.NewLabel("Preparing..."), h.window)
 		progressDialog.Show()
 
-		go ExportVideos(videos, outputPath, progress)
+		go ExportVideos(videos, outputPath, options, progress)
 
 		go func() {
 			for p := range progress {
@@ -140,6 +195,71 @@ func (h *Handlers) OnExport() {
 	fd.Show()
 }
 
+func (h *Handlers) OnSave() {
+	if h.state.Count() == 0 {
+		dialog.ShowInformation("Save Project", "No videos to save. Add some videos first.", h.window)
+		return
+	}
+
+	fd := dialog.NewFileSave(func(writer fyne.URIWriteCloser, err error) {
+		if err != nil {
+			dialog.ShowError(err, h.window)
+			return
+		}
+		if writer == nil {
+			return
+		}
+
+		outputPath := writer.URI().Path()
+		writer.Close()
+
+		videos := h.state.GetVideos()
+		if err := SaveProject(videos, outputPath); err != nil {
+			dialog.ShowError(err, h.window)
+			return
+		}
+
+		dialog.ShowInformation("Save Project", "Project saved successfully.", h.window)
+	}, h.window)
+
+	fd.SetFileName("project.json")
+	fd.Show()
+}
+
+func (h *Handlers) OnLoad() {
+	fd := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
+		if err != nil {
+			dialog.ShowError(err, h.window)
+			return
+		}
+		if reader == nil {
+			return
+		}
+
+		path := reader.URI().Path()
+		reader.Close()
+
+		videoPaths, err := LoadProject(path)
+		if err != nil {
+			dialog.ShowError(err, h.window)
+			return
+		}
+
+		h.state.Clear()
+
+		for _, videoPath := range videoPaths {
+			if err := h.state.AddVideo(videoPath); err != nil {
+				log.Printf("Failed to load video %s: %v", videoPath, err)
+			}
+		}
+
+		dialog.ShowInformation("Load Project", "Project loaded successfully.", h.window)
+	}, h.window)
+
+	fd.SetFilter(&jsonFilter{})
+	fd.Show()
+}
+
 type videoFilter struct{}
 
 func (f *videoFilter) Matches(uri fyne.URI) bool {
@@ -148,4 +268,14 @@ func (f *videoFilter) Matches(uri fyne.URI) bool {
 
 func (f *videoFilter) Extensions() []string {
 	return videoExtensions
+}
+
+type jsonFilter struct{}
+
+func (f *jsonFilter) Matches(uri fyne.URI) bool {
+	return strings.ToLower(filepath.Ext(uri.Path())) == ".json"
+}
+
+func (f *jsonFilter) Extensions() []string {
+	return []string{".json"}
 }

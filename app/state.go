@@ -1,6 +1,10 @@
 package app
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+	"time"
+)
 
 type State struct {
 	mu       sync.RWMutex
@@ -145,4 +149,32 @@ func (s *State) Move(from, to int) {
 	s.mu.Unlock()
 
 	s.notifyChange()
+}
+
+func (s *State) TotalDuration() time.Duration {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var total time.Duration
+	for _, video := range s.videos {
+		total += video.Duration
+	}
+	return total
+}
+
+func (s *State) TotalDurationString() string {
+	total := s.TotalDuration()
+	if total == 0 {
+		return ""
+	}
+
+	totalSec := int(total.Seconds())
+	hours := totalSec / 3600
+	minutes := (totalSec % 3600) / 60
+	seconds := totalSec % 60
+
+	if hours > 0 {
+		return fmt.Sprintf("%d:%02d:%02d", hours, minutes, seconds)
+	}
+	return fmt.Sprintf("%d:%02d", minutes, seconds)
 }

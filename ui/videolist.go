@@ -95,7 +95,21 @@ func (v *videoItem) update(index int, video *app.Video) {
 		v.img.Image = video.Thumbnail
 		v.img.Refresh()
 	}
-	v.label.SetText(fmt.Sprintf("%d. %s (%s)", index+1, video.Name, video.SizeString()))
+
+	duration := video.DurationString()
+	resolution := video.ResolutionString()
+
+	var info string
+	if duration != "" && resolution != "" {
+		info = fmt.Sprintf("%d. %s [%s] %s (%s)", index+1, video.Name, duration, resolution, video.SizeString())
+	} else if duration != "" {
+		info = fmt.Sprintf("%d. %s [%s] (%s)", index+1, video.Name, duration, video.SizeString())
+	} else if resolution != "" {
+		info = fmt.Sprintf("%d. %s %s (%s)", index+1, video.Name, resolution, video.SizeString())
+	} else {
+		info = fmt.Sprintf("%d. %s (%s)", index+1, video.Name, video.SizeString())
+	}
+	v.label.SetText(info)
 }
 
 func (v *videoItem) setSelected(selected bool) {
