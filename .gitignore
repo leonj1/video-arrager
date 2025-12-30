@@ -1,5 +1,6 @@
 # Binary
 video-arranger
+dist/
 *.exe
 
 # macOS app bundle
