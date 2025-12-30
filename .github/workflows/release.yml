@@ -1,0 +1,102 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - master
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build macOS ARM64
+        run: GOOS=darwin GOARCH=arm64 go build -o video-arranger-macos-arm64 .
+
+      - name: Build macOS AMD64
+        run: GOOS=darwin GOARCH=amd64 go build -o video-arranger-macos-amd64 .
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-binaries
+          path: |
+            video-arranger-macos-arm64
+            video-arranger-macos-amd64
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build Windows AMD64
+        run: go build -o video-arranger-windows-amd64.exe .
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-binaries
+          path: video-arranger-windows-amd64.exe
+
+  release:
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-binaries
+          path: dist/
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-binaries
+          path: dist/
+
+      - name: Get version
+        id: version
+        run: echo "version=$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          body: |
+            Automated release from commit ${{ github.sha }}
+            
+            ## Downloads
+            - **macOS (Apple Silicon)**: video-arranger-macos-arm64
+            - **macOS (Intel)**: video-arranger-macos-amd64
+            - **Windows**: video-arranger-windows-amd64.exe
+            
+            ## Requirements
+            - [ffmpeg](https://ffmpeg.org/) must be installed on your system
+            
+            ## macOS Users
+            You may need to allow the app in System Preferences > Security & Privacy after first run.
+          files: |
+            dist/*
+          draft: false
+          prerelease: false
