@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -73,7 +74,7 @@ func (h *Handlers) OnAddVideos() {
 
 		if isVideoFile(path) {
 			log.Printf("Adding video: %s", path)
-			h.state.AddVideo(path)
+			h.AddVideosWithProgress([]string{path})
 			log.Println("Video added")
 		}
 	}, h.window)
@@ -115,13 +116,43 @@ func (h *Handlers) OnAddFolder() {
 		}
 
 		log.Printf("Found %d video files", len(videoPaths))
-		for _, path := range videoPaths {
-			log.Printf("Adding video: %s", path)
-			h.state.AddVideo(path)
-		}
+		h.AddVideosWithProgress(videoPaths)
 	}, h.window)
 
 	fd.Show()
+}
+
+func (h *Handlers) AddVideosWithProgress(paths []string) {
+	if len(paths) == 0 {
+		return
+	}
+
+	progressBar := widget.NewProgressBar()
+	progressLabel := widget.NewLabel("Loading videos...")
+	content := fyne.NewContainerWithLayout(
+		nil,
+		progressLabel,
+		progressBar,
+	)
+	content.Resize(fyne.NewSize(300, 60))
+	progressLabel.Move(fyne.NewPos(0, 0))
+	progressBar.Move(fyne.NewPos(0, 25))
+	progressBar.Resize(fyne.NewSize(300, 25))
+
+	progressDialog := dialog.NewCustomWithoutButtons("Loading Videos", content, h.window)
+	progressDialog.Show()
+
+	go func() {
+		for i, path := range paths {
+			progress := float64(i+1) / float64(len(paths))
+			progressBar.SetValue(progress)
+			progressLabel.SetText(fmt.Sprintf("Loading video %d of %d...", i+1, len(paths)))
+
+			log.Printf("Adding video: %s", path)
+			h.state.AddVideo(path)
+		}
+		progressDialog.Hide()
+	}()
 }
 
 func (h *Handlers) OnRemove() {

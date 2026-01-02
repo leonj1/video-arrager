@@ -111,11 +111,15 @@ func main() {
 
 	// Drag and drop support
 	window.SetOnDropped(func(_ fyne.Position, uris []fyne.URI) {
+		var paths []string
 		for _, uri := range uris {
 			path := uri.Path()
 			if isVideoFile(path) {
-				state.AddVideo(path)
+				paths = append(paths, path)
 			}
+		}
+		if len(paths) > 0 {
+			handlers.AddVideosWithProgress(paths)
 		}
 	})
 
