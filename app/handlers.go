@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 )
@@ -129,15 +130,7 @@ func (h *Handlers) AddVideosWithProgress(paths []string) {
 
 	progressBar := widget.NewProgressBar()
 	progressLabel := widget.NewLabel("Loading videos...")
-	content := fyne.NewContainerWithLayout(
-		nil,
-		progressLabel,
-		progressBar,
-	)
-	content.Resize(fyne.NewSize(300, 60))
-	progressLabel.Move(fyne.NewPos(0, 0))
-	progressBar.Move(fyne.NewPos(0, 25))
-	progressBar.Resize(fyne.NewSize(300, 25))
+	content := container.NewVBox(progressLabel, progressBar)
 
 	progressDialog := dialog.NewCustomWithoutButtons("Loading Videos", content, h.window)
 	progressDialog.Show()
